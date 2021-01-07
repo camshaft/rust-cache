@@ -5,11 +5,16 @@ import * as glob from "@actions/glob";
 import * as io from "@actions/io";
 import fs from "fs";
 import path from "path";
-import { cleanTarget, getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
+import { getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
+import * as sccache from './sccache'
 
 async function run() {
   try {
+    await sccache.stop();
+
     const { paths: savePaths, key } = await getCacheConfig();
+
+    savePaths.push(...sccache.paths());
 
     if (core.getState(stateKey) === key) {
       core.info(`Cache up-to-date.`);
@@ -28,10 +33,6 @@ async function run() {
 
     try {
       await cleanGit(packages);
-    } catch {}
-
-    try {
-      await cleanTarget(packages);
     } catch {}
 
     core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);
