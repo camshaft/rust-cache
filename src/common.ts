@@ -12,7 +12,8 @@ process.on("uncaughtException", (e) => {
 });
 
 export const stateKey = "RUST_CACHE_KEY";
-const stateHash = "RUST_CACHE_HASH";
+const stateDepsHash = "RUST_DEPS_CACHE_HASH";
+const stateLibHash = "RUST_LIB_CACHE_HASH";
 
 const home = os.homedir();
 export const paths = {
@@ -24,7 +25,7 @@ export const paths = {
 interface CacheConfig {
   paths: Array<string>;
   key: string;
-  restoreKeys: Array<string>;
+  secondaryKeys: Array<string>;
 }
 
 const RefKey = "GITHUB_REF";
@@ -34,10 +35,16 @@ export function isValidEvent(): boolean {
 }
 
 export async function getCacheConfig(): Promise<CacheConfig> {
-  let lockHash = core.getState(stateHash);
-  if (!lockHash) {
-    lockHash = await getLockfileHash();
-    core.saveState(stateHash, lockHash);
+  let depsHash = core.getState(stateDepsHash);
+  if (!depsHash) {
+    depsHash = await getHash(['**/Cargo.toml', '**/Cargo.lock']);
+    core.saveState(stateDepsHash, depsHash);
+  }
+
+  let libHash = core.getState(stateLibHash);
+  if (!libHash) {
+    libHash = await getHash(['**/*.rs']);
+    core.saveState(stateLibHash, libHash);
   }
 
   let key = `v0-camshaft-rust-cache-`;
@@ -56,8 +63,8 @@ export async function getCacheConfig(): Promise<CacheConfig> {
 
   return {
     paths: [paths.index, paths.cache, paths.git],
-    key: `${key}-${lockHash}`,
-    restoreKeys: [key],
+    key: `${key}-${depsHash}-${libHash}`,
+    secondaryKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
   };
 }
 
@@ -100,8 +107,8 @@ export async function getCmdOutput(
   return stdout;
 }
 
-async function getLockfileHash(): Promise<string> {
-  const globber = await glob.create("**/Cargo.toml\n**/Cargo.lock", { followSymbolicLinks: false });
+async function getHash(patterns: string[]): Promise<string> {
+  const globber = await glob.create(patterns.join('\n'), { followSymbolicLinks: false });
   const files = await globber.glob();
   files.sort((a, b) => a.localeCompare(b));
 
@@ -111,7 +118,7 @@ async function getLockfileHash(): Promise<string> {
       hasher.update(chunk);
     }
   }
-  return hasher.digest("hex").slice(0, 20);
+  return hasher.digest("base64").slice(0, 20);
 }
 
 export interface PackageDefinition {

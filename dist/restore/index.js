@@ -55996,7 +55996,8 @@ process.on("uncaughtException", (e) => {
     lib_core.info(`[warning] ${e.message}`);
 });
 const stateKey = "RUST_CACHE_KEY";
-const stateHash = "RUST_CACHE_HASH";
+const stateDepsHash = "RUST_DEPS_CACHE_HASH";
+const stateLibHash = "RUST_LIB_CACHE_HASH";
 const home = external_os_default().homedir();
 const paths = {
     index: external_path_default().join(home, ".cargo/registry/index"),
@@ -56008,10 +56009,15 @@ function isValidEvent() {
     return RefKey in process.env && Boolean(process.env[RefKey]);
 }
 async function getCacheConfig() {
-    let lockHash = lib_core.getState(stateHash);
-    if (!lockHash) {
-        lockHash = await getLockfileHash();
-        lib_core.saveState(stateHash, lockHash);
+    let depsHash = lib_core.getState(stateDepsHash);
+    if (!depsHash) {
+        depsHash = await getHash(['**/Cargo.toml', '**/Cargo.lock']);
+        lib_core.saveState(stateDepsHash, depsHash);
+    }
+    let libHash = lib_core.getState(stateLibHash);
+    if (!libHash) {
+        libHash = await getHash(['**/*.rs']);
+        lib_core.saveState(stateLibHash, libHash);
     }
     let key = `v0-camshaft-rust-cache-`;
     let inputKey = lib_core.getInput("key");
@@ -56025,8 +56031,8 @@ async function getCacheConfig() {
     key += await getRustKey();
     return {
         paths: [paths.index, paths.cache, paths.git],
-        key: `${key}-${lockHash}`,
-        restoreKeys: [key],
+        key: `${key}-${depsHash}-${libHash}`,
+        secondaryKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
     };
 }
 async function getRustKey() {
@@ -56055,8 +56061,8 @@ async function getCmdOutput(cmd, args = [], options = {}) {
     });
     return stdout;
 }
-async function getLockfileHash() {
-    const globber = await glob.create("**/Cargo.toml\n**/Cargo.lock", { followSymbolicLinks: false });
+async function getHash(patterns) {
+    const globber = await glob.create(patterns.join('\n'), { followSymbolicLinks: false });
     const files = await globber.glob();
     files.sort((a, b) => a.localeCompare(b));
     const hasher = external_crypto_default().createHash("sha1");
@@ -56065,7 +56071,7 @@ async function getLockfileHash() {
             hasher.update(chunk);
         }
     }
-    return hasher.digest("hex").slice(0, 20);
+    return hasher.digest("base64").slice(0, 20);
 }
 async function getPackages() {
     const cwd = process.cwd();
@@ -56172,11 +56178,11 @@ async function resolveVersion(crate) {
 async function run() {
     try {
         lib_core.exportVariable("CARGO_INCREMENTAL", 0);
-        const { paths, key, restoreKeys } = await getCacheConfig();
+        const { paths, key, secondaryKeys } = await getCacheConfig();
         paths.push(...sccache_paths());
         lib_core.info(`Restoring paths:\n    ${paths.join("\n    ")}`);
-        lib_core.info(`Using keys:\n    ${[key, ...restoreKeys].join("\n    ")}`);
-        const restoreKey = await cache.restoreCache(paths, key, restoreKeys);
+        lib_core.info(`Using keys:\n    ${[key, ...secondaryKeys].join("\n    ")}`);
+        const restoreKey = await cache.restoreCache(paths, key, secondaryKeys);
         if (restoreKey) {
             lib_core.info(`Restored from cache key "${restoreKey}".`);
             lib_core.saveState(stateKey, restoreKey);

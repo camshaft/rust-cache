@@ -12,7 +12,7 @@ async function run() {
   try {
     await sccache.stop();
 
-    const { paths: savePaths, key } = await getCacheConfig();
+    const { paths: savePaths, key, secondaryKeys } = await getCacheConfig();
 
     savePaths.push(...sccache.paths());
 
@@ -38,6 +38,13 @@ async function run() {
     core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);
     core.info(`Using key "${key}".`);
     await cache.saveCache(savePaths, key);
+
+    for (let k of secondaryKeys) {
+      core.info(`Saving secondary key "${k}".`);
+      try {
+        await cache.saveCache(savePaths, k);
+      } catch {}
+    }
   } catch (e) {
     core.info(`[warning] ${e.message}`);
   }
