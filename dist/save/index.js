@@ -56017,7 +56017,7 @@ async function getCacheConfig() {
     const libHash = await getCachedHash(stateLibHash, [
         '**/*.rs',
     ]);
-    let key = `v0-camshaft-rust-cache-`;
+    let key = `v1-camshaft-rust-cache-`;
     let inputKey = lib_core.getInput("key");
     if (inputKey) {
         key += `${inputKey}-`;
