@@ -54,10 +54,11 @@ export async function restore() {
 
     const binPath = await tc.downloadTool(url);
     const extractedPath = await tc.extractTar(binPath);
-    core.info(`Successfully extracted sccache to ${extractedPath}`)
-    core.addPath(extractedPath);
+    core.info(`Successfully extracted sccache to ${extractedPath}`);
+    const cachedPath = await tc.cacheDir(extractedPath, 'sccache', target);
+    core.addPath(cachedPath);
 
-    await exec.exec(extractedPath, ['--start-server']);
+    await exec.exec('sccache', ['--start-server']);
 }
 
 export async function stop() {

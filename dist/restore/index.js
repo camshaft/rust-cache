@@ -56143,8 +56143,9 @@ async function restore() {
     const binPath = await tool_cache.downloadTool(url);
     const extractedPath = await tool_cache.extractTar(binPath);
     lib_core.info(`Successfully extracted sccache to ${extractedPath}`);
-    lib_core.addPath(extractedPath);
-    await lib_exec.exec(extractedPath, ['--start-server']);
+    const cachedPath = await tool_cache.cacheDir(extractedPath, 'sccache', target);
+    lib_core.addPath(cachedPath);
+    await lib_exec.exec('sccache', ['--start-server']);
 }
 async function stop() {
     await exec.exec('sccache', ['--stop-server']);
