@@ -56137,7 +56137,7 @@ async function restore() {
         lib_core.setFailed(`missing architecture for ${platform}`);
         return;
     }
-    const version = conf.version === 'latest' ? resolveVersion('sccache') : conf.version;
+    const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
     const url = `https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${target}.tar.gz`;
     lib_core.info(`Installing sccache from ${url}`);
     const binPath = await tool_cache.downloadTool(url);
