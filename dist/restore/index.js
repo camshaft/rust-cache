@@ -56009,16 +56009,13 @@ function isValidEvent() {
     return RefKey in process.env && Boolean(process.env[RefKey]);
 }
 async function getCacheConfig() {
-    let depsHash = lib_core.getState(stateDepsHash);
-    if (!depsHash) {
-        depsHash = await getHash(['**/Cargo.toml', '**/Cargo.lock']);
-        lib_core.saveState(stateDepsHash, depsHash);
-    }
-    let libHash = lib_core.getState(stateLibHash);
-    if (!libHash) {
-        libHash = await getHash(['**/*.rs']);
-        lib_core.saveState(stateLibHash, libHash);
-    }
+    const depsHash = await getCachedHash(stateDepsHash, [
+        '**/Cargo.toml',
+        '**/Cargo.lock'
+    ]);
+    const libHash = await getCachedHash(stateLibHash, [
+        '**/*.rs',
+    ]);
     let key = `v0-camshaft-rust-cache-`;
     let inputKey = lib_core.getInput("key");
     if (inputKey) {
@@ -56032,7 +56029,8 @@ async function getCacheConfig() {
     return {
         paths: [paths.index, paths.cache, paths.git],
         key: `${key}-${depsHash}-${libHash}`,
-        secondaryKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
+        secondaryKeys: [`${key}-${libHash}-${depsHash}`],
+        restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
     };
 }
 async function getRustKey() {
@@ -56060,6 +56058,14 @@ async function getCmdOutput(cmd, args = [], options = {}) {
         ...options,
     });
     return stdout;
+}
+async function getCachedHash(key, patterns) {
+    let hash = lib_core.getState(key);
+    if (!hash) {
+        hash = await getHash(patterns);
+        lib_core.saveState(key, hash);
+    }
+    return hash;
 }
 async function getHash(patterns) {
     const globber = await glob.create(patterns.join('\n'), { followSymbolicLinks: false });
@@ -56178,11 +56184,11 @@ async function resolveVersion(crate) {
 async function run() {
     try {
         lib_core.exportVariable("CARGO_INCREMENTAL", 0);
-        const { paths, key, secondaryKeys } = await getCacheConfig();
+        const { paths, key, restoreKeys } = await getCacheConfig();
         paths.push(...sccache_paths());
         lib_core.info(`Restoring paths:\n    ${paths.join("\n    ")}`);
-        lib_core.info(`Using keys:\n    ${[key, ...secondaryKeys].join("\n    ")}`);
-        const restoreKey = await cache.restoreCache(paths, key, secondaryKeys);
+        lib_core.info(`Using keys:\n    ${[key, ...restoreKeys].join("\n    ")}`);
+        const restoreKey = await cache.restoreCache(paths, key, restoreKeys);
         if (restoreKey) {
             lib_core.info(`Restored from cache key "${restoreKey}".`);
             lib_core.saveState(stateKey, restoreKey);

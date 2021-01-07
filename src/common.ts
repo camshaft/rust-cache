@@ -25,6 +25,7 @@ export const paths = {
 interface CacheConfig {
   paths: Array<string>;
   key: string;
+  restoreKeys: Array<string>;
   secondaryKeys: Array<string>;
 }
 
@@ -35,17 +36,13 @@ export function isValidEvent(): boolean {
 }
 
 export async function getCacheConfig(): Promise<CacheConfig> {
-  let depsHash = core.getState(stateDepsHash);
-  if (!depsHash) {
-    depsHash = await getHash(['**/Cargo.toml', '**/Cargo.lock']);
-    core.saveState(stateDepsHash, depsHash);
-  }
-
-  let libHash = core.getState(stateLibHash);
-  if (!libHash) {
-    libHash = await getHash(['**/*.rs']);
-    core.saveState(stateLibHash, libHash);
-  }
+  const depsHash = await getCachedHash(stateDepsHash, [
+    '**/Cargo.toml',
+    '**/Cargo.lock'
+  ]);
+  const libHash = await getCachedHash(stateLibHash, [
+    '**/*.rs',
+  ]);
 
   let key = `v0-camshaft-rust-cache-`;
 
@@ -64,7 +61,8 @@ export async function getCacheConfig(): Promise<CacheConfig> {
   return {
     paths: [paths.index, paths.cache, paths.git],
     key: `${key}-${depsHash}-${libHash}`,
-    secondaryKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
+    secondaryKeys: [`${key}-${libHash}-${depsHash}`],
+    restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
   };
 }
 
@@ -105,6 +103,15 @@ export async function getCmdOutput(
     ...options,
   });
   return stdout;
+}
+
+async function getCachedHash(key: string, patterns: string[]): Promise<string> {
+  let hash = core.getState(key);
+  if (!hash) {
+    hash = await getHash(patterns);
+    core.saveState(key, hash);
+  }
+  return hash;
 }
 
 async function getHash(patterns: string[]): Promise<string> {
