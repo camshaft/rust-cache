@@ -108,6 +108,7 @@ export async function getCmdOutput(
 async function getCachedHash(key: string, patterns: string[]): Promise<string> {
   let hash = core.getState(key);
   if (!hash) {
+    core.info(`computing hash key: ${key}`);
     hash = await getHash(patterns);
     core.saveState(key, hash);
   }
@@ -121,6 +122,7 @@ async function getHash(patterns: string[]): Promise<string> {
 
   const hasher = crypto.createHash("sha1");
   for (const file of files) {
+    core.info(`hashing ${file}`);
     for await (const chunk of fs.createReadStream(file)) {
       hasher.update(chunk);
     }

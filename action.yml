@@ -8,6 +8,18 @@ inputs:
   working-directory:
     description: "The working directory this action should operate in"
     required: false
+  wrapper:
+    description: "Defaults to setting RUSTC_WRAPPER=sccache"
+    required: false
+  cache-dir:
+    description: "Sets the cache dir for sccache"
+    required: false
+  cache-size:
+    description: "Sets the max cache size for sccache"
+    required: false
+  sccache-version:
+    description: "Override the sccache version - defaults to latest"
+    required: false
 runs:
   using: "node12"
   main: "dist/restore/index.js"

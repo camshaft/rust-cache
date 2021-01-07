@@ -56062,6 +56062,7 @@ async function getCmdOutput(cmd, args = [], options = {}) {
 async function getCachedHash(key, patterns) {
     let hash = lib_core.getState(key);
     if (!hash) {
+        lib_core.info(`computing hash key: ${key}`);
         hash = await getHash(patterns);
         lib_core.saveState(key, hash);
     }
@@ -56073,6 +56074,7 @@ async function getHash(patterns) {
     files.sort((a, b) => a.localeCompare(b));
     const hasher = external_crypto_default().createHash("sha1");
     for (const file of files) {
+        lib_core.info(`hashing ${file}`);
         for await (const chunk of external_fs_default().createReadStream(file)) {
             hasher.update(chunk);
         }
@@ -56117,10 +56119,10 @@ var tool_cache = __nccwpck_require__(7784);
 const sccache_home = external_os_default().homedir();
 function config() {
     return {
-        size: lib_core.getInput('sccache_size') || '300M',
-        dir: lib_core.getInput('sccache_dir') || external_path_default().join(sccache_home, '.sccache'),
-        enabled: lib_core.getInput('sccache_enabled') !== 'false',
-        version: lib_core.getInput('sccache_version') || 'latest',
+        size: lib_core.getInput('cache-size') || '300M',
+        dir: lib_core.getInput('cache-dir') || external_path_default().join(sccache_home, '.sccache'),
+        enabled: lib_core.getInput('wrapper') !== 'false',
+        version: lib_core.getInput('sccache-version') || 'latest',
     };
 }
 function sccache_paths() {

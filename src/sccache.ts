@@ -9,10 +9,10 @@ const home = os.homedir();
 
 export function config() {
   return {
-    size: core.getInput('sccache_size') || '300M',
-    dir: core.getInput('sccache_dir') || path.join(home, '.sccache'),
-    enabled: core.getInput('sccache_enabled') !== 'false',
-    version: core.getInput('sccache_version') || 'latest',
+    size: core.getInput('cache-size') || '300M',
+    dir: core.getInput('cache-dir') || path.join(home, '.sccache'),
+    enabled: core.getInput('wrapper') !== 'false',
+    version: core.getInput('sccache-version') || 'latest',
   }
 }
 
