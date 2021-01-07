@@ -47,7 +47,7 @@ export async function restore() {
       core.setFailed(`missing architecture for ${platform}`);
       return;
     }
-    const version = conf.version === 'latest' ? resolveVersion('sccache') : conf.version;
+    const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
 
     const url = `https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${target}.tar.gz`;
     core.info(`Installing sccache from ${url}`);
