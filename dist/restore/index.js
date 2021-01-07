@@ -56013,7 +56013,7 @@ async function getCacheConfig() {
         lockHash = await getLockfileHash();
         lib_core.saveState(stateHash, lockHash);
     }
-    let key = `v0-rust-`;
+    let key = `v0-camshaft-rust-cache-`;
     let inputKey = lib_core.getInput("key");
     if (inputKey) {
         key += `${inputKey}-`;
@@ -56140,10 +56140,13 @@ async function restore() {
     lib_core.info(`Successfully extracted sccache to ${extractedPath}`);
     const cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', version);
     lib_core.addPath(cachedPath);
-    await lib_exec.exec('sccache', ['--start-server']);
+    process.env.SCCACHE_CACHE_SIZE = conf.size;
+    process.env.SCCACHE_DIR = conf.dir;
+    process.env.SCCACHE_IDLE_TIMEOUT = '0';
     lib_core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
     lib_core.exportVariable('SCCACHE_DIR', conf.dir);
     lib_core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
+    await lib_exec.exec('sccache', ['--start-server']);
     if (conf.enabled) {
         lib_core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }

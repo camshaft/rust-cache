@@ -40,7 +40,7 @@ export async function getCacheConfig(): Promise<CacheConfig> {
     core.saveState(stateHash, lockHash);
   }
 
-  let key = `v0-rust-`;
+  let key = `v0-camshaft-rust-cache-`;
 
   let inputKey = core.getInput("key");
   if (inputKey) {

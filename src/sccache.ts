@@ -51,11 +51,15 @@ export async function restore() {
     const cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', version);
     core.addPath(cachedPath);
 
-    await exec.exec('sccache', ['--start-server']);
+    process.env.SCCACHE_CACHE_SIZE = conf.size;
+    process.env.SCCACHE_DIR = conf.dir;
+    process.env.SCCACHE_IDLE_TIMEOUT = '0';
 
     core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
     core.exportVariable('SCCACHE_DIR', conf.dir);
     core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
+
+    await exec.exec('sccache', ['--start-server']);
 
     if (conf.enabled) {
       core.exportVariable('RUSTC_WRAPPER', 'sccache');
