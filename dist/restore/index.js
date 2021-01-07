@@ -56125,12 +56125,6 @@ const targets = new Map([
 ]);
 async function restore() {
     const conf = config();
-    lib_core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
-    lib_core.exportVariable('SCCACHE_DIR', conf.dir);
-    lib_core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
-    if (conf.enabled) {
-        lib_core.exportVariable('RUSTC_WRAPPER', 'sccache');
-    }
     const platform = `${external_os_default().platform()}-${process.arch}`;
     const target = targets.get(platform);
     if (!target) {
@@ -56138,14 +56132,21 @@ async function restore() {
         return;
     }
     const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
-    const url = `https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${target}.tar.gz`;
+    const name = `sccache-${version}-${target}`;
+    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
     lib_core.info(`Installing sccache from ${url}`);
     const binPath = await tool_cache.downloadTool(url);
     const extractedPath = await tool_cache.extractTar(binPath);
     lib_core.info(`Successfully extracted sccache to ${extractedPath}`);
-    const cachedPath = await tool_cache.cacheDir(extractedPath, 'sccache', target);
+    const cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', version);
     lib_core.addPath(cachedPath);
     await lib_exec.exec('sccache', ['--start-server']);
+    lib_core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
+    lib_core.exportVariable('SCCACHE_DIR', conf.dir);
+    lib_core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
+    if (conf.enabled) {
+        lib_core.exportVariable('RUSTC_WRAPPER', 'sccache');
+    }
 }
 async function stop() {
     await exec.exec('sccache', ['--stop-server']);
