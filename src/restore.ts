@@ -1,13 +1,13 @@
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
-import { cleanTarget, getCacheConfig, getPackages, stateKey } from "./common";
+import { cleanTargets, getCacheConfig, getPackages, stateKey } from "./common";
 import * as sccache from './sccache'
 
 async function run() {
   try {
     core.exportVariable("CARGO_INCREMENTAL", 0);
 
-    const { paths, key, restoreKeys } = await getCacheConfig();
+    const { paths, key, restoreKeys, targets } = await getCacheConfig();
 
     paths.push(...sccache.paths());
 
@@ -22,7 +22,7 @@ async function run() {
         // pre-clean the target directory on cache mismatch
         const packages = await getPackages();
 
-        await cleanTarget(packages);
+        await cleanTargets(packages, targets);
       }
     } else {
       core.info("No cache found.");

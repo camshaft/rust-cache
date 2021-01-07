@@ -56003,7 +56003,6 @@ const paths = {
     index: external_path_default().join(home, ".cargo/registry/index"),
     cache: external_path_default().join(home, ".cargo/registry/cache"),
     git: external_path_default().join(home, ".cargo/git"),
-    target: 'target'
 };
 const RefKey = "GITHUB_REF";
 function isValidEvent() {
@@ -56027,8 +56026,10 @@ async function getCacheConfig() {
         key += `${job}-`;
     }
     key += await getRustKey();
+    const targets = await getTargets();
     return {
-        paths: [paths.index, paths.cache, paths.git, paths.target],
+        paths: [paths.index, paths.cache, paths.git].concat(targets),
+        targets,
         key: `${key}-${depsHash}-${libHash}`,
         secondaryKeys: [`${key}-${libHash}-${depsHash}`],
         restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
@@ -56080,6 +56081,15 @@ async function getHash(patterns) {
     }
     return hasher.digest("base64").slice(0, 20);
 }
+async function getTargets() {
+    const globber = await glob.create('**/Cargo.toml', { followSymbolicLinks: false });
+    const files = await globber.glob();
+    files.sort((a, b) => a.localeCompare(b));
+    return files.map((file) => {
+        const dir = external_path_default().dirname(file);
+        return external_path_default().join(dir, 'target');
+    });
+}
 async function getPackages() {
     const cwd = process.cwd();
     const meta = JSON.parse(await getCmdOutput("cargo", ["metadata", "--all-features", "--format-version", "1"]));
@@ -56090,21 +56100,8 @@ async function getPackages() {
         return { name: p.name, version: p.version, targets, path: external_path_default().dirname(p.manifest_path) };
     });
 }
-async function cleanTarget(packages) {
-    await external_fs_default().promises.unlink("./target/.rustc_info.json");
-    await io.rmRF("./target/debug/examples");
-    await io.rmRF("./target/debug/incremental");
-    let dir;
-    // remove all *files* from debug
-    dir = await external_fs_default().promises.opendir("./target/debug");
-    for await (const dirent of dir) {
-        if (dirent.isFile()) {
-            await rm(dir.path, dirent);
-        }
-    }
+async function cleanTargets(packages, targets) {
     const keepPkg = new Set(packages.map((p) => p.name));
-    await rmExcept("./target/debug/build", keepPkg);
-    await rmExcept("./target/debug/.fingerprint", keepPkg);
     const keepDeps = new Set(packages.flatMap((p) => {
         const names = [];
         for (const n of [p.name, ...p.targets]) {
@@ -56113,7 +56110,25 @@ async function cleanTarget(packages) {
         }
         return names;
     }));
-    await rmExcept("./target/debug/deps", keepDeps);
+    for (let target of targets) {
+        await cleanTarget(keepPkg, keepDeps, target);
+    }
+}
+async function cleanTarget(keepPkg, keepDeps, target) {
+    await external_fs_default().promises.unlink(external_path_default().join(target, ".rustc_info.json"));
+    await io.rmRF(external_path_default().join(target, "debug/examples"));
+    await io.rmRF(external_path_default().join(target, "debug/incremental"));
+    let dir;
+    // remove all *files* from debug
+    dir = await external_fs_default().promises.opendir(external_path_default().join(target, "debug"));
+    for await (const dirent of dir) {
+        if (dirent.isFile()) {
+            await rm(dir.path, dirent);
+        }
+    }
+    await rmExcept(external_path_default().join(target, "debug/build"), keepPkg);
+    await rmExcept(external_path_default().join(target, "debug/.fingerprint"), keepPkg);
+    await rmExcept(external_path_default().join(target, "debug/deps"), keepDeps);
 }
 const oneWeek = 7 * 24 * 3600 * 1000;
 async function rmExcept(dirName, keepPrefix) {
@@ -56232,7 +56247,7 @@ async function resolveVersion(crate) {
 async function run() {
     try {
         await stop();
-        const { paths: savePaths, key, secondaryKeys } = await getCacheConfig();
+        const { paths: savePaths, key, secondaryKeys, targets } = await getCacheConfig();
         savePaths.push(...sccache_paths());
         if (lib_core.getState(stateKey) === key) {
             lib_core.info(`Cache up-to-date.`);
@@ -56251,7 +56266,7 @@ async function run() {
         }
         catch { }
         try {
-            await cleanTarget(packages);
+            await cleanTargets(packages, targets);
         }
         catch { }
         lib_core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);

@@ -5,14 +5,14 @@ import * as glob from "@actions/glob";
 import * as io from "@actions/io";
 import fs from "fs";
 import path from "path";
-import { cleanTarget, getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
+import { cleanTargets, getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
 import * as sccache from './sccache'
 
 async function run() {
   try {
     await sccache.stop();
 
-    const { paths: savePaths, key, secondaryKeys } = await getCacheConfig();
+    const { paths: savePaths, key, secondaryKeys, targets } = await getCacheConfig();
 
     savePaths.push(...sccache.paths());
 
@@ -36,7 +36,7 @@ async function run() {
     } catch {}
 
     try {
-      await cleanTarget(packages);
+      await cleanTargets(packages, targets);
     } catch {}
 
     core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);

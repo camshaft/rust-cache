@@ -20,11 +20,11 @@ export const paths = {
   index: path.join(home, ".cargo/registry/index"),
   cache: path.join(home, ".cargo/registry/cache"),
   git: path.join(home, ".cargo/git"),
-  target: 'target'
 };
 
 interface CacheConfig {
   paths: Array<string>;
+  targets: Array<string>;
   key: string;
   restoreKeys: Array<string>;
   secondaryKeys: Array<string>;
@@ -59,8 +59,11 @@ export async function getCacheConfig(): Promise<CacheConfig> {
 
   key += await getRustKey();
 
+  const targets = await getTargets();
+
   return {
-    paths: [paths.index, paths.cache, paths.git, paths.target],
+    paths: [paths.index, paths.cache, paths.git].concat(targets),
+    targets,
     key: `${key}-${depsHash}-${libHash}`,
     secondaryKeys: [`${key}-${libHash}-${depsHash}`],
     restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
@@ -129,6 +132,17 @@ async function getHash(patterns: string[]): Promise<string> {
   return hasher.digest("base64").slice(0, 20);
 }
 
+async function getTargets(): Promise<string[]> {
+  const globber = await glob.create('**/Cargo.toml', { followSymbolicLinks: false });
+  const files = await globber.glob();
+  files.sort((a, b) => a.localeCompare(b));
+
+  return files.map((file) => {
+    const dir = path.dirname(file);
+    return path.join(dir, 'target');
+  });
+}
+
 export interface PackageDefinition {
   name: string;
   version: string;
@@ -159,23 +173,8 @@ export async function getPackages(): Promise<Packages> {
     });
 }
 
-export async function cleanTarget(packages: Packages) {
-  await fs.promises.unlink("./target/.rustc_info.json");
-  await io.rmRF("./target/debug/examples");
-  await io.rmRF("./target/debug/incremental");
-
-  let dir: fs.Dir;
-  // remove all *files* from debug
-  dir = await fs.promises.opendir("./target/debug");
-  for await (const dirent of dir) {
-    if (dirent.isFile()) {
-      await rm(dir.path, dirent);
-    }
-  }
-
+export async function cleanTargets(packages: Packages, targets: string[]) {
   const keepPkg = new Set(packages.map((p) => p.name));
-  await rmExcept("./target/debug/build", keepPkg);
-  await rmExcept("./target/debug/.fingerprint", keepPkg);
 
   const keepDeps = new Set(
     packages.flatMap((p) => {
@@ -187,7 +186,29 @@ export async function cleanTarget(packages: Packages) {
       return names;
     }),
   );
-  await rmExcept("./target/debug/deps", keepDeps);
+
+  for (let target of targets) {
+    await cleanTarget(keepPkg, keepDeps, target);
+  }
+}
+
+export async function cleanTarget(keepPkg: Set<string>, keepDeps: Set<string>, target: string) {
+  await fs.promises.unlink(path.join(target, ".rustc_info.json"));
+  await io.rmRF(path.join(target, "debug/examples"));
+  await io.rmRF(path.join(target, "debug/incremental"));
+
+  let dir: fs.Dir;
+  // remove all *files* from debug
+  dir = await fs.promises.opendir(path.join(target, "debug"));
+  for await (const dirent of dir) {
+    if (dirent.isFile()) {
+      await rm(dir.path, dirent);
+    }
+  }
+
+  await rmExcept(path.join(target, "debug/build"), keepPkg);
+  await rmExcept(path.join(target, "debug/.fingerprint"), keepPkg);
+  await rmExcept(path.join(target, "debug/deps"), keepDeps);
 }
 
 const oneWeek = 7 * 24 * 3600 * 1000;
