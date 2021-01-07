@@ -5,7 +5,7 @@ import * as glob from "@actions/glob";
 import * as io from "@actions/io";
 import fs from "fs";
 import path from "path";
-import { getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
+import { cleanTarget, getCacheConfig, getPackages, Packages, paths, rm, stateKey } from "./common";
 import * as sccache from './sccache'
 
 async function run() {
@@ -33,6 +33,10 @@ async function run() {
 
     try {
       await cleanGit(packages);
+    } catch {}
+
+    try {
+      await cleanTarget(packages);
     } catch {}
 
     core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);

@@ -56003,6 +56003,7 @@ const paths = {
     index: external_path_default().join(home, ".cargo/registry/index"),
     cache: external_path_default().join(home, ".cargo/registry/cache"),
     git: external_path_default().join(home, ".cargo/git"),
+    target: 'target'
 };
 const RefKey = "GITHUB_REF";
 function isValidEvent() {
@@ -56027,7 +56028,7 @@ async function getCacheConfig() {
     }
     key += await getRustKey();
     return {
-        paths: [paths.index, paths.cache, paths.git],
+        paths: [paths.index, paths.cache, paths.git, paths.target],
         key: `${key}-${depsHash}-${libHash}`,
         secondaryKeys: [`${key}-${libHash}-${depsHash}`],
         restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
@@ -56088,6 +56089,48 @@ async function getPackages() {
         const targets = p.targets.filter((t) => t.kind[0] === "lib").map((t) => t.name);
         return { name: p.name, version: p.version, targets, path: external_path_default().dirname(p.manifest_path) };
     });
+}
+async function cleanTarget(packages) {
+    await external_fs_default().promises.unlink("./target/.rustc_info.json");
+    await io.rmRF("./target/debug/examples");
+    await io.rmRF("./target/debug/incremental");
+    let dir;
+    // remove all *files* from debug
+    dir = await external_fs_default().promises.opendir("./target/debug");
+    for await (const dirent of dir) {
+        if (dirent.isFile()) {
+            await rm(dir.path, dirent);
+        }
+    }
+    const keepPkg = new Set(packages.map((p) => p.name));
+    await rmExcept("./target/debug/build", keepPkg);
+    await rmExcept("./target/debug/.fingerprint", keepPkg);
+    const keepDeps = new Set(packages.flatMap((p) => {
+        const names = [];
+        for (const n of [p.name, ...p.targets]) {
+            const name = n.replace(/-/g, "_");
+            names.push(name, `lib${name}`);
+        }
+        return names;
+    }));
+    await rmExcept("./target/debug/deps", keepDeps);
+}
+const oneWeek = 7 * 24 * 3600 * 1000;
+async function rmExcept(dirName, keepPrefix) {
+    const dir = await external_fs_default().promises.opendir(dirName);
+    for await (const dirent of dir) {
+        let name = dirent.name;
+        const idx = name.lastIndexOf("-");
+        if (idx !== -1) {
+            name = name.slice(0, idx);
+        }
+        const fileName = external_path_default().join(dir.path, dirent.name);
+        const { mtime } = await external_fs_default().promises.stat(fileName);
+        // we don’t really know
+        if (!keepPrefix.has(name) || Date.now() - mtime.getTime() > oneWeek) {
+            await rm(dir.path, dirent);
+        }
+    }
 }
 async function rm(parent, dirent) {
     try {
@@ -56205,6 +56248,10 @@ async function run() {
         catch { }
         try {
             await cleanGit(packages);
+        }
+        catch { }
+        try {
+            await cleanTarget(packages);
         }
         catch { }
         lib_core.info(`Saving paths:\n    ${savePaths.join("\n    ")}`);

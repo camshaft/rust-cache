@@ -55960,13 +55960,13 @@ __nccwpck_require__.r(__webpack_exports__);
 // EXTERNAL MODULE: ./node_modules/@actions/cache/lib/cache.js
 var cache = __nccwpck_require__(7799);
 // EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
-var lib_core = __nccwpck_require__(2186);
+var core = __nccwpck_require__(2186);
 // EXTERNAL MODULE: ./node_modules/@actions/exec/lib/exec.js
 var lib_exec = __nccwpck_require__(1514);
 // EXTERNAL MODULE: ./node_modules/@actions/glob/lib/glob.js
 var glob = __nccwpck_require__(8090);
 // EXTERNAL MODULE: ./node_modules/@actions/io/lib/io.js
-var lib_io = __nccwpck_require__(7436);
+var io = __nccwpck_require__(7436);
 // EXTERNAL MODULE: external "crypto"
 var external_crypto_ = __nccwpck_require__(6417);
 var external_crypto_default = /*#__PURE__*/__nccwpck_require__.n(external_crypto_);
@@ -55993,7 +55993,7 @@ var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
 
 
 process.on("uncaughtException", (e) => {
-    lib_core.info(`[warning] ${e.message}`);
+    core.info(`[warning] ${e.message}`);
 });
 const stateKey = "RUST_CACHE_KEY";
 const stateDepsHash = "RUST_DEPS_CACHE_HASH";
@@ -56003,6 +56003,7 @@ const paths = {
     index: external_path_default().join(home, ".cargo/registry/index"),
     cache: external_path_default().join(home, ".cargo/registry/cache"),
     git: external_path_default().join(home, ".cargo/git"),
+    target: 'target'
 };
 const RefKey = "GITHUB_REF";
 function isValidEvent() {
@@ -56017,7 +56018,7 @@ async function getCacheConfig() {
         '**/*.rs',
     ]);
     let key = `v0-camshaft-rust-cache-`;
-    let inputKey = lib_core.getInput("key");
+    let inputKey = core.getInput("key");
     if (inputKey) {
         key += `${inputKey}-`;
     }
@@ -56027,7 +56028,7 @@ async function getCacheConfig() {
     }
     key += await getRustKey();
     return {
-        paths: [paths.index, paths.cache, paths.git],
+        paths: [paths.index, paths.cache, paths.git, paths.target],
         key: `${key}-${depsHash}-${libHash}`,
         secondaryKeys: [`${key}-${libHash}-${depsHash}`],
         restoreKeys: [`${key}-${depsHash}`, `${key}-${libHash}`, key],
@@ -56060,10 +56061,10 @@ async function getCmdOutput(cmd, args = [], options = {}) {
     return stdout;
 }
 async function getCachedHash(key, patterns) {
-    let hash = lib_core.getState(key);
+    let hash = core.getState(key);
     if (!hash) {
         hash = await getHash(patterns);
-        lib_core.saveState(key, hash);
+        core.saveState(key, hash);
     }
     return hash;
 }
@@ -56086,15 +56087,57 @@ async function getPackages() {
         .filter((p) => !p.manifest_path.startsWith(cwd))
         .map((p) => {
         const targets = p.targets.filter((t) => t.kind[0] === "lib").map((t) => t.name);
-        return { name: p.name, version: p.version, targets, path: path.dirname(p.manifest_path) };
+        return { name: p.name, version: p.version, targets, path: external_path_default().dirname(p.manifest_path) };
     });
+}
+async function cleanTarget(packages) {
+    await external_fs_default().promises.unlink("./target/.rustc_info.json");
+    await io.rmRF("./target/debug/examples");
+    await io.rmRF("./target/debug/incremental");
+    let dir;
+    // remove all *files* from debug
+    dir = await external_fs_default().promises.opendir("./target/debug");
+    for await (const dirent of dir) {
+        if (dirent.isFile()) {
+            await rm(dir.path, dirent);
+        }
+    }
+    const keepPkg = new Set(packages.map((p) => p.name));
+    await rmExcept("./target/debug/build", keepPkg);
+    await rmExcept("./target/debug/.fingerprint", keepPkg);
+    const keepDeps = new Set(packages.flatMap((p) => {
+        const names = [];
+        for (const n of [p.name, ...p.targets]) {
+            const name = n.replace(/-/g, "_");
+            names.push(name, `lib${name}`);
+        }
+        return names;
+    }));
+    await rmExcept("./target/debug/deps", keepDeps);
+}
+const oneWeek = 7 * 24 * 3600 * 1000;
+async function rmExcept(dirName, keepPrefix) {
+    const dir = await external_fs_default().promises.opendir(dirName);
+    for await (const dirent of dir) {
+        let name = dirent.name;
+        const idx = name.lastIndexOf("-");
+        if (idx !== -1) {
+            name = name.slice(0, idx);
+        }
+        const fileName = external_path_default().join(dir.path, dirent.name);
+        const { mtime } = await external_fs_default().promises.stat(fileName);
+        // we don’t really know
+        if (!keepPrefix.has(name) || Date.now() - mtime.getTime() > oneWeek) {
+            await rm(dir.path, dirent);
+        }
+    }
 }
 async function rm(parent, dirent) {
     try {
-        const fileName = path.join(parent, dirent.name);
+        const fileName = external_path_default().join(parent, dirent.name);
         core.debug(`deleting "${fileName}"`);
         if (dirent.isFile()) {
-            await fs.promises.unlink(fileName);
+            await external_fs_default().promises.unlink(fileName);
         }
         else if (dirent.isDirectory()) {
             await io.rmRF(fileName);
@@ -56117,10 +56160,10 @@ var tool_cache = __nccwpck_require__(7784);
 const sccache_home = external_os_default().homedir();
 function config() {
     return {
-        size: lib_core.getInput('cache-size') || '300M',
-        dir: lib_core.getInput('cache-dir') || external_path_default().join(sccache_home, '.sccache'),
-        enabled: lib_core.getInput('wrapper') !== 'false',
-        version: lib_core.getInput('sccache-version') || 'latest',
+        size: core.getInput('cache-size') || '300M',
+        dir: core.getInput('cache-dir') || external_path_default().join(sccache_home, '.sccache'),
+        enabled: core.getInput('wrapper') !== 'false',
+        version: core.getInput('sccache-version') || 'latest',
     };
 }
 function sccache_paths() {
@@ -56140,27 +56183,27 @@ async function restore() {
     const platform = `${external_os_default().platform()}-${process.arch}`;
     const target = targets.get(platform);
     if (!target) {
-        lib_core.setFailed(`missing architecture for ${platform}`);
+        core.setFailed(`missing architecture for ${platform}`);
         return;
     }
     const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
     const name = `sccache-${version}-${target}`;
     const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
-    lib_core.info(`Installing sccache from ${url}`);
+    core.info(`Installing sccache from ${url}`);
     const binPath = await tool_cache.downloadTool(url);
     const extractedPath = await tool_cache.extractTar(binPath);
-    lib_core.info(`Successfully extracted sccache to ${extractedPath}`);
+    core.info(`Successfully extracted sccache to ${extractedPath}`);
     const cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', version);
-    lib_core.addPath(cachedPath);
+    core.addPath(cachedPath);
     process.env.SCCACHE_CACHE_SIZE = conf.size;
     process.env.SCCACHE_DIR = conf.dir;
     process.env.SCCACHE_IDLE_TIMEOUT = '0';
-    lib_core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
-    lib_core.exportVariable('SCCACHE_DIR', conf.dir);
-    lib_core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
+    core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
+    core.exportVariable('SCCACHE_DIR', conf.dir);
+    core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
     await lib_exec.exec('sccache', ['--start-server']);
     if (conf.enabled) {
-        lib_core.exportVariable('RUSTC_WRAPPER', 'sccache');
+        core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }
 }
 async function stop() {
@@ -56183,23 +56226,28 @@ async function resolveVersion(crate) {
 
 async function run() {
     try {
-        lib_core.exportVariable("CARGO_INCREMENTAL", 0);
+        core.exportVariable("CARGO_INCREMENTAL", 0);
         const { paths, key, restoreKeys } = await getCacheConfig();
         paths.push(...sccache_paths());
-        lib_core.info(`Restoring paths:\n    ${paths.join("\n    ")}`);
-        lib_core.info(`Using keys:\n    ${[key, ...restoreKeys].join("\n    ")}`);
+        core.info(`Restoring paths:\n    ${paths.join("\n    ")}`);
+        core.info(`Using keys:\n    ${[key, ...restoreKeys].join("\n    ")}`);
         const restoreKey = await cache.restoreCache(paths, key, restoreKeys);
         if (restoreKey) {
-            lib_core.info(`Restored from cache key "${restoreKey}".`);
-            lib_core.saveState(stateKey, restoreKey);
+            core.info(`Restored from cache key "${restoreKey}".`);
+            core.saveState(stateKey, restoreKey);
+            if (restoreKey !== key) {
+                // pre-clean the target directory on cache mismatch
+                const packages = await getPackages();
+                await cleanTarget(packages);
+            }
         }
         else {
-            lib_core.info("No cache found.");
+            core.info("No cache found.");
         }
         await restore();
     }
     catch (e) {
-        lib_core.info(`[warning] ${e.message}`);
+        core.info(`[warning] ${e.message}`);
     }
 }
 run();
