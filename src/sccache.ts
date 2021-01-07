@@ -50,6 +50,7 @@ export async function restore() {
     const version = conf.version === 'latest' ? resolveVersion('sccache') : conf.version;
 
     const url = `https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${target}.tar.gz`;
+    core.info(`Installing sccache from ${url}`);
 
     const binPath = await tc.downloadTool(url);
     const extractedPath = await tc.extractTar(binPath);

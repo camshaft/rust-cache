@@ -56139,6 +56139,7 @@ async function restore() {
     }
     const version = conf.version === 'latest' ? resolveVersion('sccache') : conf.version;
     const url = `https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${target}.tar.gz`;
+    lib_core.info(`Installing sccache from ${url}`);
     const binPath = await tool_cache.downloadTool(url);
     const extractedPath = await tool_cache.extractTar(binPath);
     lib_core.info(`Successfully extracted sccache to ${extractedPath}`);
