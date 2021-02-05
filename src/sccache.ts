@@ -39,17 +39,15 @@ export async function restore() {
       core.setFailed(`missing architecture for ${platform}`);
       return;
     }
-    const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
+    const version = (conf.version === 'latest' ? await resolveVersion('sccache') : conf.version).replace(/^v/, '');
 
-    const name = `sccache-${version}-${target}`;
-    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
-    core.info(`Installing sccache from ${url}`);
-
-    const binPath = await tc.downloadTool(url);
-    const extractedPath = await tc.extractTar(binPath);
-    core.info(`Successfully extracted sccache to ${extractedPath}`);
-    const cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', version);
-    core.addPath(cachedPath);
+    try {
+      await install(target, version);
+    } catch (err) {
+      // sccache hasn't been consistent in their tag naming scheme
+      // try adding the v before giving up
+      await install(target, `v${version}`);
+    }
 
     process.env.SCCACHE_CACHE_SIZE = conf.size;
     process.env.SCCACHE_DIR = conf.dir;
@@ -64,6 +62,19 @@ export async function restore() {
     if (conf.enabled) {
       core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }
+}
+
+async function install(target: string, version: string): Promise<void> {
+    const name = `sccache-${version}-${target}`;
+    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
+    core.info(`Installing sccache from ${url}`);
+
+    const binPath = await tc.downloadTool(url);
+    const extractedPath = await tc.extractTar(binPath);
+    core.info(`Successfully extracted sccache to ${extractedPath}`);
+    const cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', version);
+
+    core.addPath(cachedPath);
 }
 
 export async function stop() {

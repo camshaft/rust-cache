@@ -56201,15 +56201,15 @@ async function restore() {
         core.setFailed(`missing architecture for ${platform}`);
         return;
     }
-    const version = conf.version === 'latest' ? await resolveVersion('sccache') : conf.version;
-    const name = `sccache-${version}-${target}`;
-    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
-    core.info(`Installing sccache from ${url}`);
-    const binPath = await tool_cache.downloadTool(url);
-    const extractedPath = await tool_cache.extractTar(binPath);
-    core.info(`Successfully extracted sccache to ${extractedPath}`);
-    const cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', version);
-    core.addPath(cachedPath);
+    const version = (conf.version === 'latest' ? await resolveVersion('sccache') : conf.version).replace(/^v/, '');
+    try {
+        await install(target, version);
+    }
+    catch (err) {
+        // sccache hasn't been consistent in their tag naming scheme
+        // try adding the v before giving up
+        await install(target, `v${version}`);
+    }
     process.env.SCCACHE_CACHE_SIZE = conf.size;
     process.env.SCCACHE_DIR = conf.dir;
     process.env.SCCACHE_IDLE_TIMEOUT = '0';
@@ -56220,6 +56220,16 @@ async function restore() {
     if (conf.enabled) {
         core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }
+}
+async function install(target, version) {
+    const name = `sccache-${version}-${target}`;
+    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
+    core.info(`Installing sccache from ${url}`);
+    const binPath = await tool_cache.downloadTool(url);
+    const extractedPath = await tool_cache.extractTar(binPath);
+    core.info(`Successfully extracted sccache to ${extractedPath}`);
+    const cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', version);
+    core.addPath(cachedPath);
 }
 async function stop() {
     await exec.exec('sccache', ['--stop-server']);
