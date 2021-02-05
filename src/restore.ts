@@ -1,6 +1,6 @@
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
-import { cleanTargets, getCacheConfig, getPackages, stateKey } from "./common";
+import { cleanTargets, initTargets, getCacheConfig, getPackages, stateKey } from "./common";
 import * as sccache from './sccache'
 
 async function run() {
@@ -13,6 +13,7 @@ async function run() {
 
     core.info(`Restoring paths:\n    ${paths.join("\n    ")}`);
     core.info(`Using keys:\n    ${[key, ...restoreKeys].join("\n    ")}`);
+    await initTargets(targets);
     const restoreKey = await cache.restoreCache(paths, key, restoreKeys);
     if (restoreKey) {
       core.info(`Restored from cache key "${restoreKey}".`);

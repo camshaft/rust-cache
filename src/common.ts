@@ -6,6 +6,7 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import mkdirp from "mkdirp";
 
 process.on("uncaughtException", (e) => {
   core.info(`[warning] ${e.message}`);
@@ -141,6 +142,10 @@ async function getTargets(): Promise<string[]> {
     const dir = path.dirname(file);
     return path.join(dir, 'target');
   });
+}
+
+export async function initTargets(targets: string[]): Promise<void> {
+  await Promise.all(targets.map(target => mkdirp(target)));
 }
 
 export interface PackageDefinition {
