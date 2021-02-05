@@ -56222,13 +56222,17 @@ async function restore() {
     }
 }
 async function install(target, version) {
-    const name = `sccache-${version}-${target}`;
-    const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
-    core.info(`Installing sccache from ${url}`);
-    const binPath = await tc.downloadTool(url);
-    const extractedPath = await tc.extractTar(binPath);
-    core.info(`Successfully extracted sccache to ${extractedPath}`);
-    const cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', version);
+    const tcVersion = version.replace(/^v/, '');
+    let cachedPath = await tc.find('sccache', tcVersion);
+    if (!cachedPath) {
+        const name = `sccache-${version}-${target}`;
+        const url = `https://github.com/mozilla/sccache/releases/download/${version}/${name}.tar.gz`;
+        core.info(`Installing sccache from ${url}`);
+        const binPath = await tc.downloadTool(url);
+        const extractedPath = await tc.extractTar(binPath);
+        core.info(`Successfully extracted sccache to ${extractedPath}`);
+        cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', tcVersion);
+    }
     core.addPath(cachedPath);
 }
 async function stop() {
