@@ -56172,6 +56172,7 @@ var tool_cache = __nccwpck_require__(7784);
 
 
 
+
 const sccache_home = external_os_default().homedir();
 function config() {
     return {
@@ -56233,10 +56234,16 @@ async function install(target, version) {
         core.info(`Successfully extracted sccache to ${extractedPath}`);
         cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', tcVersion);
     }
+    core.info(`adding ${cachedPath} to the executable path: ${external_fs_default().readdirSync(cachedPath).join(',')}`);
     core.addPath(cachedPath);
 }
 async function stop() {
-    await exec.exec('sccache', ['--stop-server']);
+    try {
+        await exec.exec('sccache', ['--stop-server']);
+    }
+    catch (err) {
+        // ignore
+    }
 }
 async function resolveVersion(crate) {
     const url = `https://crates.io/api/v1/crates/${crate}`;

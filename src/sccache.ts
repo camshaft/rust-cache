@@ -4,6 +4,7 @@ import * as exec from '@actions/exec';
 import * as tc from '@actions/tool-cache'
 import os from "os";
 import path from 'path';
+import fs from 'fs';
 
 const home = os.homedir();
 
@@ -80,11 +81,17 @@ async function install(target: string, version: string): Promise<void> {
       cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', tcVersion);
     }
 
+    core.info(`adding ${cachedPath} to the executable path: ${fs.readdirSync(cachedPath).join(',')}`);
+
     core.addPath(cachedPath);
 }
 
 export async function stop() {
-    await exec.exec('sccache', ['--stop-server'])
+    try {
+      await exec.exec('sccache', ['--stop-server']);
+    } catch (err) {
+      // ignore
+    }
 }
 
 export async function resolveVersion(crate: string): Promise<string> {
