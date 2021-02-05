@@ -42,13 +42,16 @@ export async function restore() {
     }
     const version = (conf.version === 'latest' ? await resolveVersion('sccache') : conf.version).replace(/^v/, '');
 
+    let lib;
     try {
-      await install(target, version);
+      lib = await install(target, version);
     } catch (err) {
       // sccache hasn't been consistent in their tag naming scheme
       // try adding the v before giving up
-      await install(target, `v${version}`);
+      lib = await install(target, `v${version}`);
     }
+
+    if (!lib) return;
 
     process.env.SCCACHE_CACHE_SIZE = conf.size;
     process.env.SCCACHE_DIR = conf.dir;
@@ -58,14 +61,14 @@ export async function restore() {
     core.exportVariable('SCCACHE_DIR', conf.dir);
     core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
 
-    await exec.exec('sccache', ['--start-server']);
+    await exec.exec(lib, ['--start-server']);
 
     if (conf.enabled) {
       core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }
 }
 
-async function install(target: string, version: string): Promise<void> {
+async function install(target: string, version: string): Promise<string> {
     const tcVersion = version.replace(/^v/, '');
     let cachedPath = await tc.find('sccache', tcVersion);
 
@@ -81,9 +84,16 @@ async function install(target: string, version: string): Promise<void> {
       cachedPath = await tc.cacheDir(path.join(extractedPath, name), 'sccache', tcVersion);
     }
 
-    core.info(`adding ${cachedPath} to the executable path: ${fs.readdirSync(cachedPath).join(',')}`);
+    core.info(`adding ${cachedPath} to the executable path`);
 
     core.addPath(cachedPath);
+
+    const bin = path.join(cachedPath, 'sccache');
+
+    // make sure it's actually executable
+    await chmodx(bin);
+
+    return bin;
 }
 
 export async function stop() {
@@ -106,4 +116,10 @@ export async function resolveVersion(crate: string): Promise<string> {
     }
 
     return resp.result['crate']['newest_version'];
+}
+
+function chmodx(bin: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    fs.chmod(bin, 0o775, (err) => err ? reject(err) : resolve(void 0))
+  });
 }

@@ -56203,21 +56203,24 @@ async function restore() {
         return;
     }
     const version = (conf.version === 'latest' ? await resolveVersion('sccache') : conf.version).replace(/^v/, '');
+    let lib;
     try {
-        await install(target, version);
+        lib = await install(target, version);
     }
     catch (err) {
         // sccache hasn't been consistent in their tag naming scheme
         // try adding the v before giving up
-        await install(target, `v${version}`);
+        lib = await install(target, `v${version}`);
     }
+    if (!lib)
+        return;
     process.env.SCCACHE_CACHE_SIZE = conf.size;
     process.env.SCCACHE_DIR = conf.dir;
     process.env.SCCACHE_IDLE_TIMEOUT = '0';
     core.exportVariable('SCCACHE_CACHE_SIZE', conf.size);
     core.exportVariable('SCCACHE_DIR', conf.dir);
     core.exportVariable("SCCACHE_IDLE_TIMEOUT", 0);
-    await lib_exec.exec('sccache', ['--start-server']);
+    await lib_exec.exec(lib, ['--start-server']);
     if (conf.enabled) {
         core.exportVariable('RUSTC_WRAPPER', 'sccache');
     }
@@ -56234,8 +56237,12 @@ async function install(target, version) {
         core.info(`Successfully extracted sccache to ${extractedPath}`);
         cachedPath = await tool_cache.cacheDir(external_path_default().join(extractedPath, name), 'sccache', tcVersion);
     }
-    core.info(`adding ${cachedPath} to the executable path: ${external_fs_default().readdirSync(cachedPath).join(',')}`);
+    core.info(`adding ${cachedPath} to the executable path`);
     core.addPath(cachedPath);
+    const bin = external_path_default().join(cachedPath, 'sccache');
+    // make sure it's actually executable
+    await chmodx(bin);
+    return bin;
 }
 async function stop() {
     try {
@@ -56253,6 +56260,11 @@ async function resolveVersion(crate) {
         throw new Error('Unable to fetch latest crate version');
     }
     return resp.result['crate']['newest_version'];
+}
+function chmodx(bin) {
+    return new Promise((resolve, reject) => {
+        external_fs_default().chmod(bin, 0o775, (err) => err ? reject(err) : resolve(void 0));
+    });
 }
 
 // CONCATENATED MODULE: ./src/restore.ts
