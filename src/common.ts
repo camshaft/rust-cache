@@ -193,7 +193,12 @@ export async function cleanTargets(packages: Packages, targets: string[]) {
   );
 
   for (let target of targets) {
-    await cleanTarget(keepPkg, keepDeps, target);
+    try {
+      await cleanTarget(keepPkg, keepDeps, target);
+    } catch (_err) {
+      /* ignore any issues while deleting the target directory */
+      continue;
+    }
   }
 }
 

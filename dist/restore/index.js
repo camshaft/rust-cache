@@ -56393,7 +56393,13 @@ async function cleanTargets(packages, targets) {
         return names;
     }));
     for (let target of targets) {
-        await cleanTarget(keepPkg, keepDeps, target);
+        try {
+            await cleanTarget(keepPkg, keepDeps, target);
+        }
+        catch (_err) {
+            /* ignore any issues while deleting the target directory */
+            continue;
+        }
     }
 }
 async function cleanTarget(keepPkg, keepDeps, target) {
